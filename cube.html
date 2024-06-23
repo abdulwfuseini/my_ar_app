@@ -21,43 +21,55 @@ async function activateXR() {
   document.body.appendChild(canvas);
   const gl = canvas.getContext("webgl", {xrCompatible: true});
 
-  // To be continued in upcoming steps.
+  const scene = new THREE.Scene();
 
   // Set up the WebGLRenderer, which handles rendering to the session's base layer.
-const renderer = new THREE.WebGLRenderer({
+  const renderer = new THREE.WebGLRenderer({
     alpha: true,
     preserveDrawingBuffer: true,
     canvas: canvas,
     context: gl
   });
   renderer.autoClear = false;
-  
+
   // The API directly updates the camera matrices.
   // Disable matrix auto updates so three.js doesn't attempt
   // to handle the matrices independently.
   const camera = new THREE.PerspectiveCamera();
   camera.matrixAutoUpdate = false;
 
+  // Create a cube geometry
+  const cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2); // Cube dimensions (width, height, depth)
+
+  // Create a basic material with red color
+  const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red color
+
+  // Combine geometry and material into a mesh
+  const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+  
+  // Position the cube
+  cube.position.set(0, 0, -0.5); // Adjust position as needed
+  
+  // Add the cube to the scene
+  scene.add(cube);
 
   // Initialize a WebXR session using "immersive-ar".
-const session = await navigator.xr.requestSession("immersive-ar");
-session.updateRenderState({
-  baseLayer: new XRWebGLLayer(session, gl)
-});
+  const session = await navigator.xr.requestSession("immersive-ar");
+  session.updateRenderState({
+    baseLayer: new XRWebGLLayer(session, gl)
+  });
 
-// A 'local' reference space has a native origin that is located
-// near the viewer's position at the time the session was created.
-const referenceSpace = await session.requestReferenceSpace('local');
+  // A 'local' reference space has a native origin that is located
+  // near the viewer's position at the time the session was created.
+  const referenceSpace = await session.requestReferenceSpace('local');
 
-
-// Create a render loop that allows us to draw on the AR view.
-// Create a render loop that allows us to draw on the AR view.
-const onXRFrame = (time, frame) => {
+  // Create a render loop that allows us to draw on the AR view.
+  const onXRFrame = (time, frame) => {
     // Queue up the next draw request.
     session.requestAnimationFrame(onXRFrame);
   
     // Bind the graphics framebuffer to the baseLayer's framebuffer
-    gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer);
   
     // Retrieve the pose of the device.
     // XRFrame.getViewerPose can return null while the session attempts to establish tracking.
@@ -67,21 +79,18 @@ const onXRFrame = (time, frame) => {
       const view = pose.views[0];
   
       const viewport = session.renderState.baseLayer.getViewport(view);
-      renderer.setSize(viewport.width, viewport.height)
+      renderer.setSize(viewport.width, viewport.height);
   
       // Use the view's transform matrix and projection matrix to configure the THREE.camera.
-      camera.matrix.fromArray(view.transform.matrix)
+      camera.matrix.fromArray(view.transform.matrix);
       camera.projectionMatrix.fromArray(view.projectionMatrix);
       camera.updateMatrixWorld(true);
   
       // Render the scene with THREE.WebGLRenderer.
-      renderer.render(scene, camera)
+      renderer.render(scene, camera);
     }
   }
   session.requestAnimationFrame(onXRFrame);
-  
-
-  
 }
 </script>
 </body>
