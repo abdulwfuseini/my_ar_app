@@ -11,31 +11,40 @@
   <script src="https://unpkg.com/three@0.126.0/build/three.js"></script>
 
   <script src="https://unpkg.com/three@0.126.0/examples/js/loaders/GLTFLoader.js"></script>
+  <style>
+    .demo-button {
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
 
   <!-- Radio buttons for scene selection -->
   <label>
-    <input type="radio" name="scene" value="index" checked> Hit to Place Demo
+    <input type="radio" name="scene" value="index" checked onclick="toggleDemoButton()"> Hit to Place Demo
   </label>
   <label>
-    <input type="radio" name="scene" value="cube"> Cube Demo
+    <input type="radio" name="scene" value="cube" onclick="toggleDemoButton()"> Cube Demo
   </label>
-  <button onclick="startDemo()">Start Demo</button>
 
-  <!-- Separate button for the Hit to Place Demo -->
-  <button onclick="activateXR()">Start Hit to Place Demo</button>
+  <!-- Separate buttons for each demo -->
+  <button id="hitToPlaceButton" class="demo-button" onclick="activateXR()">Start Hit to Place Demo</button>
+  <button id="cubeButton" class="demo-button" onclick="startCubeDemo()">Start Cube Demo</button>
 
   <script>
-    function startDemo() {
+    function toggleDemoButton() {
       const selectedScene = document.querySelector('input[name="scene"]:checked').value;
-      if (selectedScene === 'index') {
-        activateXR();
-      } else if (selectedScene === 'cube') {
-        window.location.href = 'cube.html';
-      }
+      document.getElementById('hitToPlaceButton').style.display = selectedScene === 'index' ? 'inline' : 'none';
+      document.getElementById('cubeButton').style.display = selectedScene === 'cube' ? 'inline' : 'none';
     }
+
+    function startCubeDemo() {
+      window.location.href = 'cube.html';
+    }
+
+    // Initialize the correct button on page load
+    document.getElementById('hitToPlaceButton').style.display = 'inline';
 
     async function activateXR() {
       // Add a canvas element and initialize a WebGL context that is compatible with WebXR.
