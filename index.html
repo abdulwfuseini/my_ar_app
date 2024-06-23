@@ -15,12 +15,20 @@
 
 <body>
 
-  <!-- Starting an immersive WebXR session requires user interaction.
-    We start this one with a simple button. -->
+  <!-- Radio buttons to switch between scenes -->
+  <label>
+    <input type="radio" name="scene" value="current" checked> Current Scene
+  </label>
+  <label>
+    <input type="radio" name="scene" value="cube"> Cube Scene
+  </label>
+  <br><br>
+
+  <!-- Button to start the AR session -->
   <button onclick="activateXR()">Start Hit to Place Demo</button>
+
   <script>
     async function activateXR() {
-      // Add a canvas element and initialize a WebGL context that is compatible with WebXR.
       const canvas = document.createElement("canvas");
       document.body.appendChild(canvas);
       const gl = canvas.getContext("webgl", { xrCompatible: true });
@@ -31,7 +39,6 @@
       directionalLight.position.set(10, 15, 10);
       scene.add(directionalLight);
 
-      // Set up the WebGLRenderer, which handles rendering to the session's base layer.
       const renderer = new THREE.WebGLRenderer({
         alpha: true,
         preserveDrawingBuffer: true,
@@ -40,29 +47,17 @@
       });
       renderer.autoClear = false;
 
-      // The API directly updates the camera matrices.
-      // Disable matrix auto updates so three.js doesn't attempt
-      // to handle the matrices independently.
       const camera = new THREE.PerspectiveCamera();
       camera.matrixAutoUpdate = false;
 
-      // Initialize a WebXR session using "immersive-ar".
       const session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ['hit-test'] });
       session.updateRenderState({
         baseLayer: new XRWebGLLayer(session, gl)
       });
 
-      // A 'local' reference space has a native origin that is located
-      // near the viewer's position at the time the session was created.
       const referenceSpace = await session.requestReferenceSpace('local');
-
-      // Create another XRReferenceSpace that has the viewer as the origin.
       const viewerSpace = await session.requestReferenceSpace('viewer');
-      // Perform hit testing using the viewer as origin.
       const hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-
-
-
 
       const loader = new THREE.GLTFLoader();
       let reticle;
@@ -72,79 +67,83 @@
         scene.add(reticle);
       })
 
-      let garage;
-      loader.load("./garage.gltf", function (gltf) {
-        garage = gltf.scene;
+      let currentScene = null;
 
-        // Compute the bounding box of the garage
-        const boundingBox = new THREE.Box3().setFromObject(garage);
+      function loadCurrentScene() {
+        loader.load("./garage/garage.gltf", function (gltf) {
+          currentScene = gltf.scene;
 
-        // Compute the size of the bounding box
-        const size = new THREE.Vector3();
-        boundingBox.getSize(size);
+          const boundingBox = new THREE.Box3().setFromObject(currentScene);
+          const size = new THREE.Vector3();
+          boundingBox.getSize(size);
 
-        console.log("Original Size of the garage:");
-        console.log("Width:", size.x);
-        console.log("Height:", size.y);
-        console.log("Depth:", size.z);
+          const desiredWidth = 1;
+          const desiredHeight = 0.6;
+          const desiredDepth = 1;
 
-        // Define the desired real-world dimensions (in meters)
-        const desiredWidth = 1; // 3 meters
-        const desiredHeight = 0.6; // 2.5 meters
-        const desiredDepth = 1; // 5 meters
+          const scaleX = desiredWidth / size.x;
+          const scaleY = desiredHeight / size.y;
+          const scaleZ = desiredDepth / size.z;
 
-        // Compute the scale factors for each dimension
-        const scaleX = desiredWidth / size.x;
-        const scaleY = desiredHeight / size.y;
-        const scaleZ = desiredDepth / size.z;
+          const scaleFactor = Math.min(scaleX, scaleY, scaleZ);
 
-        // Choose a uniform scale factor to maintain aspect ratio
-        const scaleFactor = Math.min(scaleX, scaleY, scaleZ);
+          currentScene.scale.set(scaleFactor, scaleFactor, scaleFactor);
+          const center = boundingBox.getCenter(new THREE.Vector3());
+          currentScene.position.sub(center.multiplyScalar(scaleFactor));
 
-        // Scale the garage uniformly
-        garage.scale.set(scaleFactor, scaleFactor, scaleFactor);
+          console.log("Scaled Size of the garage:");
+          const scaledBoundingBox = new THREE.Box3().setFromObject(currentScene);
+          const scaledSize = new THREE.Vector3();
+          scaledBoundingBox.getSize(scaledSize);
+          console.log("Width:", scaledSize.x);
+          console.log("Height:", scaledSize.y);
+          console.log("Depth:", scaledSize.z);
+        });
+      }
 
-        // Optionally, center the garage
-        const center = boundingBox.getCenter(new THREE.Vector3());
-        garage.position.sub(center.multiplyScalar(scaleFactor));
+      function switchScene() {
+        if (currentScene) {
+          scene.remove(currentScene);
+          currentScene = null;
+        } else {
+          loadCurrentScene();
+          if (reticle) {
+            reticle.visible = false;
+          }
+        }
+      }
 
-        console.log("Scaled Size of the garage:");
-        const scaledBoundingBox = new THREE.Box3().setFromObject(garage);
-        const scaledSize = new THREE.Vector3();
-        scaledBoundingBox.getSize(scaledSize);
-        console.log("Width:", scaledSize.x);
-        console.log("Height:", scaledSize.y);
-        console.log("Depth:", scaledSize.z);
+      document.querySelectorAll('input[name="scene"]').forEach((elem) => {
+        elem.addEventListener("change", function (event) {
+          if (event.target.value === "cube") {
+            window.location.href = "cube.html"; // Redirect to cube.html
+          } else {
+            switchScene();
+          }
+        });
       });
 
       session.addEventListener("select", (event) => {
-        if (garage) {
-          const clone = garage.clone();
+        if (currentScene) {
+          const clone = currentScene.clone();
           clone.position.copy(reticle.position);
           scene.add(clone);
         }
       });
 
-      // Create a render loop that allows us to draw on the AR view.
       const onXRFrame = (time, frame) => {
-        // Queue up the next draw request.
         session.requestAnimationFrame(onXRFrame);
 
-        // Bind the graphics framebuffer to the baseLayer's framebuffer
-        gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer);
 
-        // Retrieve the pose of the device.
-        // XRFrame.getViewerPose can return null while the session attempts to establish tracking.
         const pose = frame.getViewerPose(referenceSpace);
         if (pose) {
-          // In mobile AR, we only have one view.
           const view = pose.views[0];
 
           const viewport = session.renderState.baseLayer.getViewport(view);
-          renderer.setSize(viewport.width, viewport.height)
+          renderer.setSize(viewport.width, viewport.height);
 
-          // Use the view's transform matrix and projection matrix to configure the THREE.camera.
-          camera.matrix.fromArray(view.transform.matrix)
+          camera.matrix.fromArray(view.transform.matrix);
           camera.projectionMatrix.fromArray(view.projectionMatrix);
           camera.updateMatrixWorld(true);
 
@@ -152,21 +151,14 @@
           if (hitTestResults.length > 0 && reticle) {
             const hitPose = hitTestResults[0].getPose(referenceSpace);
             reticle.visible = true;
-            reticle.position.set(hitPose.transform.position.x, hitPose.transform.position.y, hitPose.transform.position.z)
+            reticle.position.set(hitPose.transform.position.x, hitPose.transform.position.y, hitPose.transform.position.z);
             reticle.updateMatrixWorld(true);
           }
 
-
-
-          // Render the scene with THREE.WebGLRenderer.
-          renderer.render(scene, camera)
+          renderer.render(scene, camera);
         }
       }
       session.requestAnimationFrame(onXRFrame);
-
-
-
-
     }
   </script>
 </body>
